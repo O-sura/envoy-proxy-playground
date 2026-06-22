@@ -1,0 +1,57 @@
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9001
+
+static_resources:
+  listeners:
+    - name: listener_0
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 10000
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: AUTO
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: ["*"]
+                      routes:
+                        # Health check endpoint served directly by Envoy
+                        - match:
+                            path: "/healthz"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: "OK\n"
+                        # Everything else is proxied to the mock httpbin backend
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: service_upstream
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    # Mock backend: httpbin running via mock-backend/docker-compose.yml.
+    # Reached through host.docker.internal since Envoy and httpbin run in
+    # separate Docker networks (Envoy via `docker run`, httpbin via compose).
+    - name: service_upstream
+      load_assignment:
+        cluster_name: service_upstream
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: host.docker.internal
+                      port_value: 8080

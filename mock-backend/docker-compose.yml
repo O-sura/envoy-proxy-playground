@@ -1,0 +1,8 @@
+services:
+  httpbin:
+    # go-httpbin is a maintained, multi-arch (works on Apple Silicon) drop-in for httpbin
+    image: mccutchen/go-httpbin:v2.18.3
+    container_name: mock-httpbin
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
